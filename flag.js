@@ -202,15 +202,11 @@ function flag_load(fid) {
  */
 function theme_flag(variables) {
   try {
-    if (variables.action == 'flag') {
-      theclass = 'unflagged';
-    } else {
-      theclass = 'flagged';
-    }
+    var css_class = variables.action == 'flag' ? 'unflagged' : 'flagged';
     var attributes = {
       onclick: "_flag_onclick(" + variables.fid + ", '" + variables.entity_type + "', '" + variables.bundle + "', " +
         variables.entity_id + ", '" + variables.action + "')",
-      'class': theclass
+      'class': css_class
     };
     return theme('button_link', {
         path: null,
