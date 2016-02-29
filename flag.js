@@ -202,9 +202,15 @@ function flag_load(fid) {
  */
 function theme_flag(variables) {
   try {
+    if (variables.action == 'flag') {
+      theclass = 'unflagged';
+    } else {
+      theclass = 'flagged';
+    }
     var attributes = {
       onclick: "_flag_onclick(" + variables.fid + ", '" + variables.entity_type + "', '" + variables.bundle + "', " +
-        variables.entity_id + ", '" + variables.action + "')"
+        variables.entity_id + ", '" + variables.action + "')",
+      'class': theclass
     };
     return theme('button_link', {
         path: null,
@@ -214,6 +220,7 @@ function theme_flag(variables) {
   }
   catch (error) { console.log('theme_flag - ' + error); }
 }
+
 
 /***********|
  * Services |
