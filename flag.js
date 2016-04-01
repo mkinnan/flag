@@ -21,8 +21,9 @@ function flag_services_postprocess(options, data) {
  */
 function flag_entity_post_render_content(entity, entity_type, bundle) {
   try {
+    if (!Drupal.user.uid) { return; } // Anonymous users cannot flag anything.
+
     // Since flag isn't a field, we'll just prepend it to the entity content.
-    if (entity_type == 'node') {
       var flags = flag_get_entity_flags(entity_type, bundle);
       if (!flags) { return; }
       var entity_id = entity[entity_primary_key(entity_type)];
@@ -47,7 +48,6 @@ function flag_entity_post_render_content(entity, entity_type, bundle) {
             );
       });
       entity.content = html + entity.content;
-    }
   }
   catch (error) {
     console.log('flag_entity_post_render_content - ' + error);
@@ -152,6 +152,11 @@ function flag_get_entity_flags(entity_type, bundle) {
     var flags = null;
     $.each(drupalgap.flag, function(fid, flag) {
         if (flag.entity_type == entity_type) {
+          if (!bundle) {
+            if (!flags) { flags = {}; }
+            flags[fid] = flag;
+            return;
+          }
           $.each(flag.types, function(index, _bundle) {
               if (bundle == _bundle) {
                 if (!flags) { flags = {}; }
@@ -193,6 +198,81 @@ function flag_load(fid) {
   catch (error) { console.log('flag_load - ' + error); }
 }
 
+/**
+ * HELPERS
+ */
+
+/**
+ * Returns html for a quick link that can be used for a "split" link in a jQuery Mobile list view item.
+ * @param {String} flag_name
+ * @param {String} entity_type
+ * @param {Number} entity_id
+ * @param {Number} flagged The current flag status.
+ * @returns {String}
+ */
+function flag_quick_link(flag_name, entity_type, entity_id, flagged) {
+  return l('Do it', null, {
+    attributes: {
+      onclick: _flag_quick_link_onclick_attribute(flag_name, entity_type, entity_id, flagged),
+      'data-theme': _flag_quick_link_data_theme(flagged)
+    }
+  });
+}
+
+/**
+ * Handles clicks on jQM list view "split" quick links to toggle the flag for a given entity.
+ * @param {Object} button
+ * @param {String} flag_name
+ * @param {String} entity_type
+ * @param {Number} entity_id
+ * @param {Number} flagged
+ */
+function _flag_quick_link_onclick(button, flag_name, entity_type, entity_id, flagged) {
+  var action = flagged ? 'unflag' : 'flag';
+  flag_flag(flag_name, entity_id, action, Drupal.user.uid, true, {
+    success: function(results) {
+      if (!results[0]) { console.log(t('Flagging was unsuccessful!')); return; }
+      var new_theme = _flag_quick_link_data_theme(!flagged);
+      var old_theme = _flag_quick_link_data_theme(flagged);
+      var new_onclick = _flag_quick_link_onclick_attribute(flag_name, entity_type, entity_id, !flagged);
+      var new_class = 'ui-btn-' + new_theme;
+      var old_class = 'ui-btn-' + old_theme;
+      $(button).attr('data-theme', new_theme).attr('onclick', new_onclick).removeClass(old_class).addClass(new_class).trigger('create');
+      // In case the entity page view was already in the DOM, try to remove it.
+      setTimeout(function() {
+        drupalgap_remove_page_from_dom(drupalgap_get_page_id(entity_type + '/' + entity_id));
+      }, 50);
+    }
+  });
+}
+
+/**
+ * Returns the onclick attribute value for a flag quick link.
+ * @param {String} flag_name
+ * @param {String} entity_type
+ * @param {Number} entity_id
+ * @param {Boolean} flagged
+ * @returns {string}
+ */
+function _flag_quick_link_onclick_attribute(flag_name, entity_type, entity_id, flagged) {
+  return "_flag_quick_link_onclick(this, '" + flag_name + "', '" + entity_type + "', " + entity_id + ", " + flagged + ")";
+}
+
+/**
+ * Returns the data theme to use on a quick link button for the given flagged status.
+ * @param {Boolean} flagged
+ * @returns {string}
+ */
+function _flag_quick_link_data_theme(flagged) {
+  var data_theme_flagged = 'b';
+  var data_theme_unflagged = 'a';
+  if (drupalgap.settings.flag) {
+    if (drupalgap.settings.flag.data_theme_flagged) { data_theme_flagged = drupalgap.settings.flag.data_theme_flagged; }
+    if (drupalgap.settings.flag.data_theme_unflagged) { data_theme_unflagged = drupalgap.settings.flag.data_theme_unflagged; }
+  }
+  return flagged ? data_theme_flagged : data_theme_unflagged;
+}
+
 /********|
  * Theme |
  ********/
@@ -206,7 +286,8 @@ function theme_flag(variables) {
     var attributes = {
       onclick: "_flag_onclick(" + variables.fid + ", '" + variables.entity_type + "', '" + variables.bundle + "', " +
         variables.entity_id + ", '" + variables.action + "')",
-      'class': css_class
+      'class': css_class,
+      'data-theme': _flag_quick_link_data_theme(css_class == 'flagged')
     };
     return theme('button_link', {
         path: null,
@@ -297,4 +378,3 @@ function flag_countall(flag_name, entity_id, options) {
   }
   catch (error) { console.log('flag_countall - ' + error); }
 }
-
