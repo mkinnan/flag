@@ -17,41 +17,53 @@ function flag_services_postprocess(options, data) {
 }
 
 /**
- * Implements hook_entity_post_render_content().
+ * Implements hook_entity_view_alter().
  */
-function flag_entity_post_render_content(entity, entity_type, bundle) {
+function flag_entity_view_alter(entity_type, entity_id, mode, build) {
   try {
+
     if (!Drupal.user.uid) { return; } // Anonymous users cannot flag anything.
 
-    // Since flag isn't a field, we'll just prepend it to the entity content.
-      var flags = flag_get_entity_flags(entity_type, bundle);
-      if (!flags) { return; }
-      var entity_id = entity[entity_primary_key(entity_type)];
-      var html = '';
-      var page_id = drupalgap_get_page_id();
-      $.each(flags, function(fid, flag) {
-          var container_id = flag_container_id(flag.name, entity_id);
-          html += '<div id="' + container_id + '"></div>' +
-            drupalgap_jqm_page_event_script_code(
-              {
-                page_id: page_id,
-                jqm_page_event: 'pageshow',
-                jqm_page_event_callback: '_flag_pageshow',
-                jqm_page_event_args: JSON.stringify({
-                    fid: fid,
-                    entity_id: entity_id,
-                    entity_type: entity_type,
-                    bundle: bundle
-                })
-              },
-              flag.fid
-            );
-      });
-      entity.content = html + entity.content;
+    var bundle = null;
+    var entity = null;
+    if (entity_type == 'node') { entity = build.node; bundle = entity.type; }
+    else if (entity_type == 'user') {  entity = build.account; }
+    if (!entity) { return; }
+
+    var flags = flag_get_entity_flags(entity_type, bundle);
+    if (!flags) { return; }
+
+    var entity_id = entity[entity_primary_key(entity_type)];
+    var html = '';
+    var page_id = drupalgap_get_page_id();
+    $.each(flags, function(fid, flag) {
+
+        // Skip user profiles if the flag is configured that way.
+        if (entity_type == 'user' && !flag.options.show_on_profile) { return; }
+
+        // Only
+        if (entity_type == 'user' && flag.options.access_uid == 'others' && Drupal.user.uid == entity_id) { return; } 
+
+        // Build the render array.
+        build['flag_' + fid]= { markup: '<div id="' + flag_container_id(flag.name, entity_id) + '"></div>' +
+          drupalgap_jqm_page_event_script_code(
+            {
+              page_id: page_id,
+              jqm_page_event: 'pageshow',
+              jqm_page_event_callback: '_flag_pageshow',
+              jqm_page_event_args: JSON.stringify({
+                  fid: fid,
+                  entity_id: entity_id,
+                  entity_type: entity_type,
+                  bundle: bundle
+              })
+            },
+            entity_type + '-' + entity_id + '-' + flag.fid
+          ) };
+    });
+
   }
-  catch (error) {
-    console.log('flag_entity_post_render_content - ' + error);
-  }
+  catch (error) { console.log('flag_entity_view_alter - ' + error); }
 }
 
 /**
