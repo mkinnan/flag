@@ -45,7 +45,7 @@ function flag_entity_view_alter(entity_type, entity_id, mode, build) {
         if (entity_type == 'user' && flag.options.access_uid == 'others' && Drupal.user.uid == entity_id) { return; } 
 
         // Build the render array.
-        build['flag_' + fid]= { markup: '<div id="' + flag_container_id(flag.name, entity_id) + '"></div>' +
+        build['flag_' + fid]= { markup: '<div id="' + flag_container_id(flag.name, entity_id) + '" class="flag"></div>' +
           drupalgap_jqm_page_event_script_code(
             {
               page_id: page_id,
